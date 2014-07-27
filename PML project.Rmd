@@ -1,0 +1,87 @@
+# Practical Machine Learning Project #
+
+## Background ##
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+## Goal ##
+
+The goal of the project is to predict the manner in which they did the exercise. 
+
+### Data Processing and Manipulation
+
+```{r}
+library(caret)
+training_set<- read.csv("pml-training.csv",sep=",",na.strings = c("NA",""),header=TRUE)
+testing_set <- read.csv("pml-testing.csv",sep=",",na.strings = c("NA",""),header=TRUE)
+
+inTrain <- createDataPartition(training_set$classe, p=0.70, list=FALSE)
+training <- training_set[inTrain,]
+validation <- training_set[-inTrain,]
+
+training<-training[,colSums(is.na(training)) == 0]
+classe<-training$classe
+nums <- sapply(training, is.numeric)
+training<-cbind(classe,training[,nums])
+training$X<-training$num_window<-NULL
+
+validation<-validation[,colSums(is.na(validation)) == 0]
+vclasse<-validation$classe
+vnums <- sapply(validation, is.numeric)
+validation<-cbind(vclasse,validation[,vnums])
+colnames(validation)[1]<-"classe"
+validation$X<-validation$num_window<-NULL
+
+testing<-testing_set[,colSums(is.na(testing_set)) == 0]
+tnums <- sapply(testing, is.numeric)
+testing<-testing[,tnums]
+testing$X<-testing$num_window<-NULL
+```
+
+### Data Modelling
+
+```{r, eval=FALSE}
+library(randomForest)
+fit <- train(training$classe~.,data=training, method="rf")
+save(fit,file="fit.RData")
+```
+```{r}
+load(file = "./fit.RData")
+fit$results
+```
+
+### Error estimation 
+
+The model used on the data set produced an out of error rate < 1% with an accuracy level of > 99%
+```{r}
+traincontrol <- trainControl(method = "cv", number = 5)
+```
+```{r,eval=FALSE}
+fit_crossvalidation <- train(validation$classe~.,data=validation, method="rf",trControl=traincontrol)
+save(fit_crossvalidation,file="fit_crossvalidation.RData")
+```
+```{r}
+load(file="./fit_crossvalidation.RData")
+fit_crossvalidation$resample
+fit_crossvalidation$results
+confusionMatrix(predict(fit_crossvalidation, newdata=validation), validation$classe)
+```
+
+```{r}
+fit_crossvalidation$finalModel
+```
+
+### Test Cases
+
+In order to establish the predicton capabilities of the model; the following test was carried out on 20 cases. 
+```{r}
+test_prediction<-predict(fit, newdata=testing)
+test_prediction
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(test_prediction)
